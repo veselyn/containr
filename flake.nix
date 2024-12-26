@@ -23,6 +23,7 @@
 
           programs = {
             alejandra.enable = true;
+            rustfmt.enable = true;
           };
         };
       in {
@@ -33,6 +34,7 @@
             {
               languages = {
                 nix.enable = true;
+                rust.enable = true;
               };
 
               packages = [
@@ -40,8 +42,15 @@
               ];
 
               pre-commit.hooks = {
+                clippy.enable = true;
+                clippy.settings.denyWarnings = false;
                 deadnix.enable = true;
                 statix.enable = true;
+                test = {
+                  enable = true;
+                  entry = "cargo test";
+                  pass_filenames = false;
+                };
                 treefmt.enable = true;
                 treefmt.package = self'.formatter;
               };
