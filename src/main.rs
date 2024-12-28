@@ -69,7 +69,7 @@ impl Container {
             oci_version: self.spec.version().to_owned(),
             id: self.id.clone(),
             status: Status::Creating,
-            pid: -1,
+            pid: None,
             bundle_path: self.bundle.clone(),
             annotations: self.spec.annotations().clone().unwrap_or_default(),
         };
@@ -92,7 +92,7 @@ impl Container {
             .unwrap();
 
         state.status = Status::Created;
-        state.pid = child_pid;
+        state.pid = Some(child_pid);
 
         state_file.set_len(0).unwrap();
         state_file.rewind().unwrap();
@@ -105,7 +105,7 @@ struct State {
     oci_version: String,
     id: String,
     status: Status,
-    pid: i32,
+    pid: Option<i32>,
     bundle_path: String,
     annotations: HashMap<String, String>,
 }
