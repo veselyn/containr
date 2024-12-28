@@ -79,8 +79,8 @@ impl Container {
         let mut stack = [0u8; 8192];
 
         let child_pid = unsafe {
-            let pid =
-                nix::sched::clone(Box::new(|| 0), &mut stack, CloneFlags::empty(), None).unwrap();
+            let pid = nix::sched::clone(Box::new(&process), &mut stack, CloneFlags::empty(), None)
+                .unwrap();
             pid.as_raw()
         };
 
@@ -117,6 +117,10 @@ enum Status {
     Created,
     // Running,
     // Stopped,
+}
+
+fn process() -> isize {
+    0
 }
 
 fn main() {
