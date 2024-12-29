@@ -71,7 +71,7 @@ impl Container {
             status: Status::Creating,
             pid: None,
             bundle_path: self.bundle.clone(),
-            annotations: self.spec.annotations().clone().unwrap_or_default(),
+            annotations: self.spec.annotations().clone(),
         };
 
         serde_json::to_writer_pretty(&state_file, &state).unwrap();
@@ -107,7 +107,7 @@ struct State {
     status: Status,
     pid: Option<i32>,
     bundle_path: String,
-    annotations: HashMap<String, String>,
+    annotations: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize)]
