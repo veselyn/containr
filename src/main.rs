@@ -19,6 +19,8 @@ enum Command {
         id: String,
     },
     Create {
+        id: String,
+
         #[arg(long)]
         bundle: String,
 
@@ -27,8 +29,6 @@ enum Command {
 
         #[arg(long)]
         console_socket: Option<String>,
-
-        id: String,
     },
     Start {
         id: String,
@@ -38,7 +38,7 @@ enum Command {
     },
     Delete {
         #[arg(long)]
-        force: Option<bool>,
+        force: bool,
 
         id: String,
     },
@@ -71,7 +71,7 @@ fn main() {
         Command::Start { id: _ } => todo!(),
         Command::Kill { id: _ } => todo!(),
         Command::Delete { force, id } => {
-            Container::delete(&id, force.unwrap_or(false));
+            Container::delete(&id, force);
         }
     }
 }

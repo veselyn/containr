@@ -17,7 +17,7 @@ impl Container {
         serde_json::from_reader(state_file).unwrap()
     }
 
-    pub fn create(bundle: &str, pid_file: &str, id: &str) {
+    pub fn create(id: &str, bundle: &str, pid_file: &str) {
         let spec = oci_spec::runtime::Spec::load(format!("{bundle}/config.json")).unwrap();
         trace!(spec:?; "loaded oci runtime spec");
 
