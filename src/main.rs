@@ -38,7 +38,7 @@ enum Command {
     },
     Delete {
         #[arg(long)]
-        force: bool,
+        force: Option<bool>,
 
         id: String,
     },
@@ -70,6 +70,8 @@ fn main() {
         }
         Command::Start { id: _ } => todo!(),
         Command::Kill { id: _ } => todo!(),
-        Command::Delete { force: _, id: _ } => {}
+        Command::Delete { force, id } => {
+            Container::delete(&id, force.unwrap_or(false));
+        }
     }
 }

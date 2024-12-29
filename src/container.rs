@@ -4,7 +4,7 @@ use std::{
 };
 
 use log::{debug, trace};
-use nix::sched::CloneFlags;
+use nix::{sched::CloneFlags, sys::signal::Signal, unistd::Pid};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -60,6 +60,29 @@ impl Container {
         state_file.rewind().unwrap();
         serde_json::to_writer_pretty(state_file, &state).unwrap();
     }
+
+    pub fn delete(id: &str, force: bool) {
+        let container_runtime_dir = dirs::runtime_dir().unwrap().join("containr").join(id);
+
+        let state: State = serde_json::from_reader(
+            std::fs::File::open(container_runtime_dir.join("state.json")).unwrap(),
+        )
+        .unwrap();
+
+        if state.status == Status::Running {
+            if !force {
+                panic!("container is running; can't force delete")
+            }
+
+            let pid = state.pid.unwrap();
+            nix::sys::signal::kill(Pid::from_raw(pid), Signal::SIGKILL).unwrap();
+            debug!(id, pid; "killed running container");
+        }
+
+        std::fs::remove_dir_all(container_runtime_dir).unwrap();
+
+        debug!(id; "deleted container");
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -72,13 +95,13 @@ pub struct State {
     annotations: Option<HashMap<String, String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum Status {
     Creating,
     Created,
-    // Running,
-    // Stopped,
+    Running,
+    Stopped,
 }
 
 fn process() -> isize {
