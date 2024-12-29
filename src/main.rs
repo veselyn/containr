@@ -2,7 +2,7 @@ mod container;
 
 use clap::{Parser, Subcommand};
 use container::Container;
-use log::{debug, trace};
+use log::debug;
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -61,17 +61,7 @@ fn main() {
             console_socket: _,
             id,
         } => {
-            let spec = oci_spec::runtime::Spec::load(format!("{bundle}/config.json")).unwrap();
-            trace!(spec:?; "loaded oci runtime spec");
-
-            let container = Container {
-                spec,
-                bundle,
-                pid_file,
-                id,
-            };
-
-            container.create();
+            Container::create(&bundle, &pid_file, &id);
         }
         Command::Start { id: _ } => todo!(),
         Command::Kill { id: _ } => todo!(),
