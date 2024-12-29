@@ -61,6 +61,26 @@ impl Container {
         serde_json::to_writer_pretty(state_file, &state).unwrap();
     }
 
+    pub fn kill(id: &str, signal: Signal) {
+        let container_runtime_dir = dirs::runtime_dir().unwrap().join("containr").join(id);
+
+        let state: State = serde_json::from_reader(
+            std::fs::File::open(container_runtime_dir.join("state.json")).unwrap(),
+        )
+        .unwrap();
+
+        match state.status {
+            Status::Creating | Status::Stopped => {
+                panic!("container is not running")
+            }
+            _ => {}
+        }
+
+        let pid = state.pid.unwrap();
+        nix::sys::signal::kill(Pid::from_raw(pid), signal).unwrap();
+        debug!(id, pid; "killed container");
+    }
+
     pub fn delete(id: &str, force: bool) {
         let container_runtime_dir = dirs::runtime_dir().unwrap().join("containr").join(id);
 
@@ -108,5 +128,6 @@ enum Status {
 }
 
 fn process() -> isize {
+    std::thread::sleep(std::time::Duration::from_secs(60));
     0
 }

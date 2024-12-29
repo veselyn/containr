@@ -35,6 +35,7 @@ enum Command {
     },
     Kill {
         id: String,
+        signal: i32,
     },
     Delete {
         #[arg(long)]
@@ -68,8 +69,10 @@ fn main() {
         } => {
             Container::create(&id, &bundle, &pid_file);
         }
-        Command::Start { id: _ } => todo!(),
-        Command::Kill { id: _ } => todo!(),
+        Command::Start { id: _ } => {}
+        Command::Kill { id, signal } => {
+            Container::kill(&id, signal.try_into().unwrap());
+        }
         Command::Delete { force, id } => {
             Container::delete(&id, force);
         }
