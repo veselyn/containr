@@ -69,14 +69,17 @@ impl Container {
         )
         .unwrap();
 
-        if state.status == Status::Running {
-            if !force {
-                panic!("container is running; can't force delete")
-            }
+        match state.status {
+            Status::Created | Status::Running => {
+                if !force {
+                    panic!("container process is running; can't force delete")
+                }
 
-            let pid = state.pid.unwrap();
-            nix::sys::signal::kill(Pid::from_raw(pid), Signal::SIGKILL).unwrap();
-            debug!(id, pid; "killed running container");
+                let pid = state.pid.unwrap();
+                nix::sys::signal::kill(Pid::from_raw(pid), Signal::SIGKILL).unwrap();
+                debug!(id, pid; "killed running container");
+            }
+            _ => {}
         }
 
         std::fs::remove_dir_all(container_runtime_dir).unwrap();

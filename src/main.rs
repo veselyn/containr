@@ -61,12 +61,12 @@ fn main() {
             );
         }
         Command::Create {
+            id,
             bundle,
             pid_file,
             console_socket: _,
-            id,
         } => {
-            Container::create(&bundle, &pid_file, &id);
+            Container::create(&id, &bundle, &pid_file);
         }
         Command::Start { id: _ } => todo!(),
         Command::Kill { id: _ } => todo!(),
