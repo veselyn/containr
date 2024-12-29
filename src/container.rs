@@ -5,12 +5,18 @@ use std::{
 
 use log::{debug, trace};
 use nix::sched::CloneFlags;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct Container {}
 
 impl Container {
+    pub fn state(id: &str) -> State {
+        let container_runtime_dir = dirs::runtime_dir().unwrap().join("containr").join(id);
+        let state_file = std::fs::File::open(container_runtime_dir.join("state.json")).unwrap();
+        serde_json::from_reader(state_file).unwrap()
+    }
+
     pub fn create(bundle: &str, pid_file: &str, id: &str) {
         let spec = oci_spec::runtime::Spec::load(format!("{bundle}/config.json")).unwrap();
         trace!(spec:?; "loaded oci runtime spec");
@@ -56,8 +62,8 @@ impl Container {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct State {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct State {
     oci_version: String,
     id: String,
     status: Status,
@@ -66,7 +72,7 @@ struct State {
     annotations: Option<HashMap<String, String>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum Status {
     Creating,

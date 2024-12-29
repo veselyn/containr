@@ -54,7 +54,12 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::State { id: _ } => todo!(),
+        Command::State { id } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&Container::state(&id)).unwrap()
+            );
+        }
         Command::Create {
             bundle,
             pid_file,
