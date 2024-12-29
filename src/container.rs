@@ -1,10 +1,14 @@
 use std::{
     collections::HashMap,
-    io::{Seek, Write},
+    io::{Read, Seek, Write},
 };
 
 use log::{debug, trace};
-use nix::{sched::CloneFlags, sys::signal::Signal, unistd::Pid};
+use nix::{
+    sched::CloneFlags,
+    sys::{signal::Signal, stat::Mode},
+    unistd::Pid,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -41,8 +45,30 @@ impl Container {
         let mut stack = [0u8; 8192];
 
         let child_pid = unsafe {
-            let pid = nix::sched::clone(Box::new(&process), &mut stack, CloneFlags::empty(), None)
-                .unwrap();
+            let pid = nix::sched::clone(
+                Box::new(|| {
+                    let start_pipe = container_runtime_dir.join("start");
+                    nix::unistd::mkfifo(&start_pipe, Mode::S_IRUSR | Mode::S_IWUSR).unwrap();
+
+                    let mut start_pipe_reader = std::fs::File::open(start_pipe).unwrap();
+
+                    let mut buf = String::new();
+                    start_pipe_reader.read_to_string(&mut buf).unwrap();
+
+                    std::fs::File::create("/tmp/containr")
+                        .unwrap()
+                        .write_all(buf.as_bytes())
+                        .unwrap();
+
+                    std::thread::sleep(std::time::Duration::from_secs(60));
+
+                    0
+                }),
+                &mut stack,
+                CloneFlags::empty(),
+                None,
+            )
+            .unwrap();
             pid.as_raw()
         };
 
@@ -59,6 +85,19 @@ impl Container {
         state_file.set_len(0).unwrap();
         state_file.rewind().unwrap();
         serde_json::to_writer_pretty(state_file, &state).unwrap();
+    }
+
+    pub fn start(id: &str) {
+        let container_runtime_dir = dirs::runtime_dir().unwrap().join("containr").join(id);
+
+        let start_pipe = container_runtime_dir.join("start");
+
+        let mut start_pipe_writer = std::fs::File::options()
+            .write(true)
+            .open(start_pipe)
+            .unwrap();
+
+        start_pipe_writer.write_all(b"start container").unwrap();
     }
 
     pub fn kill(id: &str, signal: Signal) {
@@ -125,9 +164,4 @@ enum Status {
     Created,
     Running,
     Stopped,
-}
-
-fn process() -> isize {
-    std::thread::sleep(std::time::Duration::from_secs(60));
-    0
 }

@@ -69,7 +69,9 @@ fn main() {
         } => {
             Container::create(&id, &bundle, &pid_file);
         }
-        Command::Start { id: _ } => {}
+        Command::Start { id } => {
+            Container::start(&id);
+        }
         Command::Kill { id, signal } => {
             Container::kill(&id, signal.try_into().unwrap());
         }
