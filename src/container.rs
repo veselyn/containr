@@ -55,14 +55,21 @@ impl Container {
                     let mut buf = String::new();
                     start_pipe_reader.read_to_string(&mut buf).unwrap();
 
-                    std::fs::File::create("/tmp/containr")
+                    let mut args = spec
+                        .process()
+                        .as_ref()
                         .unwrap()
-                        .write_all(buf.as_bytes())
+                        .args()
+                        .as_ref()
+                        .unwrap()
+                        .iter();
+
+                    let status = std::process::Command::new(args.next().unwrap())
+                        .args(args)
+                        .status()
                         .unwrap();
 
-                    std::thread::sleep(std::time::Duration::from_secs(60));
-
-                    0
+                    status.code().unwrap().try_into().unwrap()
                 }),
                 &mut stack,
                 CloneFlags::empty(),
