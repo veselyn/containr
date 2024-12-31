@@ -63,26 +63,32 @@ impl Container {
     fn spawn_process(id: &str, spec: &Spec) -> anyhow::Result<i32> {
         let mut stack = [0u8; 8192];
 
-        let start_fifo_path = Self::runtime_dir(id)?.join("start");
-        nix::unistd::mkfifo(&start_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)?;
-
-        let mut start_fifo = File::open(start_fifo_path)?;
-
-        let mut args = spec
-            .process()
-            .as_ref()
-            .context("process field is required")?
-            .args()
-            .as_ref()
-            .context("args are required")?
-            .iter();
-
-        let mut process = Command::new(args.next().context("args is empty")?);
-        process.args(args);
-
         let pid = unsafe {
             nix::sched::clone(
                 Box::new(|| {
+                    let start_fifo_path = Self::runtime_dir(id)
+                        .expect("getting runtime dir")
+                        .join("start");
+                    nix::unistd::mkfifo(&start_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)
+                        .expect("making start fifo");
+
+                    let mut start_fifo = File::options()
+                        .read(true)
+                        .open(start_fifo_path)
+                        .expect("opening start fifo");
+
+                    let mut args = spec
+                        .process()
+                        .as_ref()
+                        .expect("process field is required")
+                        .args()
+                        .as_ref()
+                        .expect("args are required")
+                        .iter();
+
+                    let mut process = Command::new(args.next().expect("args is empty"));
+                    process.args(args);
+
                     let mut buf = String::new();
                     start_fifo
                         .read_to_string(&mut buf)
@@ -130,10 +136,7 @@ impl Container {
 
     pub fn start(&self) -> anyhow::Result<()> {
         let start_fifo_path = Self::runtime_dir(&self.id)?.join("start");
-        let mut start_fifo = File::options()
-            .write(true)
-            .truncate(true)
-            .open(start_fifo_path)?;
+        let mut start_fifo = File::options().write(true).open(start_fifo_path)?;
 
         start_fifo.write_all(b"start")?;
 
