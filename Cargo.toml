@@ -7,7 +7,8 @@ edition = "2021"
 anyhow = "1.0.95"
 clap = { version = "4.5.23", features = ["derive"] }
 dirs = "5.0.1"
-env_logger = { version = "0.11.6", features = ["unstable-kv"] }
+fern = "0.7.1"
+kv = "0.24.0"
 log = { version = "0.4.22", features = ["kv"] }
 nix = { version = "0.29.0", features = ["fs", "sched", "signal"] }
 oci-spec = "0.7.1"
