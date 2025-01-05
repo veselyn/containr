@@ -54,11 +54,12 @@ impl Cli {
                 id,
                 bundle,
                 pid_file,
-                console_socket: _,
+                console_socket,
             } => Container::create(CreateArgs {
                 id,
                 bundle,
                 pid_file,
+                console_socket,
             }),
             Command::Start { id } => Container::load(&id)?.start(),
             Command::Kill { id, signal } => Container::load(&id)?.kill(signal.try_into()?),
