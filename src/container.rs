@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::process::Process;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Container {
     id: String,
     state: State,
@@ -155,7 +155,7 @@ impl Container {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct State {
     pub oci_version: String,
     pub id: String,
@@ -165,16 +165,17 @@ pub struct State {
     pub annotations: Option<HashMap<String, String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
+    #[default]
     Creating,
     Created,
     Running,
     Stopped,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CreateArgs {
     pub id: String,
     pub bundle: String,
