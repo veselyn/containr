@@ -21,7 +21,7 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn create(args: CreateArgs) -> anyhow::Result<Container> {
+    pub fn create(args: CreateArgs) -> anyhow::Result<Self> {
         let config_file_path = format!("{}/config.json", args.bundle);
         let spec = Spec::load(config_file_path)?;
 
@@ -38,7 +38,7 @@ impl Container {
         };
         container.save()?;
 
-        let pid = Self::spawn_process(&args.id, spec, args.console_socket)?;
+        let pid = container.spawn(spec, args.console_socket)?;
         fs::write(args.pid_file, pid.to_string().as_bytes())?;
 
         container.state.status = Status::Created;
@@ -48,13 +48,13 @@ impl Container {
         Ok(container)
     }
 
-    fn spawn_process(id: &str, spec: Spec, console_socket: Option<String>) -> anyhow::Result<i32> {
-        let runtime_dir = Self::runtime_dir(id)?;
+    fn spawn(&self, spec: Spec, console_socket: Option<String>) -> anyhow::Result<i32> {
+        let runtime_dir = self.runtime_dir();
 
         let callback: CloneCb = Box::new(|| {
             let process = Process {
-                container_id: id.to_owned(),
-                spec: spec.clone(),
+                container_id: self.id.clone(),
+                spec: spec.to_owned(),
                 runtime_dir: runtime_dir.clone(),
                 console_socket: console_socket.clone(),
             };
@@ -75,23 +75,27 @@ impl Container {
         Ok(pid.as_raw())
     }
 
-    fn runtime_dir(id: &str) -> anyhow::Result<PathBuf> {
-        Ok(dirs::runtime_dir()
-            .context("unknown runtime dir")?
+    fn runtime_dir(&self) -> PathBuf {
+        dirs::runtime_dir()
+            .expect("unknown runtime dir")
             .join("containr")
-            .join(id))
+            .join(&self.id)
     }
 
-    pub fn load(id: &str) -> anyhow::Result<Container> {
-        let state_file_path = Self::runtime_dir(id)?.join("state.json");
+    pub fn load(id: &str) -> anyhow::Result<Self> {
+        let mut container = Self {
+            id: id.to_owned(),
+            ..Self::default()
+        };
+
+        let state_file_path = container.runtime_dir().join("state.json");
         let state_file = File::open(state_file_path)?;
 
         let state: State = serde_json::from_reader(state_file)?;
 
-        Ok(Container {
-            id: id.to_owned(),
-            state,
-        })
+        container.state = state;
+
+        Ok(container)
     }
 
     pub fn state(&self) -> State {
@@ -99,7 +103,7 @@ impl Container {
     }
 
     pub fn start(&self) -> anyhow::Result<()> {
-        let start_fifo_path = Self::runtime_dir(&self.id)?.join("start");
+        let start_fifo_path = self.runtime_dir().join("start");
         let mut start_fifo = File::options().write(true).open(start_fifo_path)?;
 
         start_fifo.write_all(b"start")?;
@@ -137,13 +141,13 @@ impl Container {
             nix::sys::signal::kill(pid, Signal::SIGKILL)?;
         }
 
-        fs::remove_dir_all(Self::runtime_dir(&self.id)?)?;
+        fs::remove_dir_all(self.runtime_dir())?;
 
         Ok(())
     }
 
     fn save(&self) -> anyhow::Result<()> {
-        let runtime_dir = Self::runtime_dir(&self.id)?;
+        let runtime_dir = self.runtime_dir();
         fs::create_dir_all(&runtime_dir)?;
 
         let state_file_path = runtime_dir.join("state.json");
