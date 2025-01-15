@@ -17,7 +17,7 @@ use nix::{
 use oci_spec::runtime::Spec;
 use serde_json::json;
 
-use crate::container::Container;
+use crate::container::{Container, Status};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Process {
@@ -35,7 +35,7 @@ impl Process {
         }
     }
 
-    pub fn execute(self) -> anyhow::Result<ExitStatus> {
+    pub fn execute(mut self) -> anyhow::Result<ExitStatus> {
         let pty = self
             .console_socket
             .as_ref()
@@ -116,7 +116,15 @@ impl Process {
         let mut buf = String::new();
         start_fifo.read_to_string(&mut buf)?;
 
-        let status = process.status()?;
+        self.container.reload()?;
+
+        let mut child = process.spawn()?;
+        self.container.state.status = Status::Running;
+        self.container.save()?;
+
+        let status = child.wait()?;
+        self.container.state.status = Status::Stopped;
+        self.container.save()?;
 
         Ok(status)
     }

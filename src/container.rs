@@ -117,10 +117,6 @@ impl Container {
         let pid = Pid::from_raw(self.state().pid.context("pid is required")?);
         nix::sys::signal::kill(pid, signal)?;
 
-        self.state.pid = None;
-        self.state.status = Status::Stopped;
-        self.save()?;
-
         Ok(())
     }
 
@@ -139,7 +135,13 @@ impl Container {
         Ok(())
     }
 
-    fn save(&self) -> anyhow::Result<()> {
+    pub fn reload(&mut self) -> anyhow::Result<()> {
+        let reloaded = Self::load(&self.id)?;
+        *self = reloaded;
+        Ok(())
+    }
+
+    pub fn save(&self) -> anyhow::Result<()> {
         let runtime_dir = self.runtime_dir();
         fs::create_dir_all(&runtime_dir)?;
 
