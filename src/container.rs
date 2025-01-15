@@ -16,8 +16,8 @@ use crate::process::Process;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Container {
-    id: String,
-    state: State,
+    pub id: String,
+    pub state: State,
 }
 
 impl Container {
@@ -38,7 +38,7 @@ impl Container {
         };
         container.save()?;
 
-        let pid = container.spawn(spec, args.console_socket)?;
+        let pid = container.spawn(&spec, &args.console_socket)?;
         fs::write(args.pid_file, pid.to_string().as_bytes())?;
 
         container.state.status = Status::Created;
@@ -48,16 +48,9 @@ impl Container {
         Ok(container)
     }
 
-    fn spawn(&self, spec: Spec, console_socket: Option<String>) -> anyhow::Result<i32> {
-        let runtime_dir = self.runtime_dir();
-
+    fn spawn(&self, spec: &Spec, console_socket: &Option<String>) -> anyhow::Result<i32> {
         let callback: CloneCb = Box::new(|| {
-            let process = Process {
-                container_id: self.id.clone(),
-                spec: spec.to_owned(),
-                runtime_dir: runtime_dir.clone(),
-                console_socket: console_socket.clone(),
-            };
+            let process = Process::new(self.to_owned(), spec.clone(), console_socket.clone());
 
             match process.execute() {
                 Ok(status) => status.code().unwrap().try_into().unwrap(),
@@ -75,7 +68,7 @@ impl Container {
         Ok(pid.as_raw())
     }
 
-    fn runtime_dir(&self) -> PathBuf {
+    pub fn runtime_dir(&self) -> PathBuf {
         dirs::runtime_dir()
             .expect("unknown runtime dir")
             .join("containr")

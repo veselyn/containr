@@ -2,7 +2,6 @@ use std::{
     fs::File,
     io::{IoSlice, Read},
     os::fd::AsRawFd,
-    path::PathBuf,
     process::{Command, ExitStatus},
 };
 
@@ -18,15 +17,24 @@ use nix::{
 use oci_spec::runtime::Spec;
 use serde_json::json;
 
-#[derive(Debug, Clone)]
+use crate::container::Container;
+
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Process {
-    pub container_id: String,
-    pub spec: Spec,
-    pub runtime_dir: PathBuf,
-    pub console_socket: Option<String>,
+    container: Container,
+    spec: Spec,
+    console_socket: Option<String>,
 }
 
 impl Process {
+    pub fn new(container: Container, spec: Spec, console_socket: Option<String>) -> Self {
+        Self {
+            container,
+            spec,
+            console_socket,
+        }
+    }
+
     pub fn execute(self) -> anyhow::Result<ExitStatus> {
         let pty = self
             .console_socket
@@ -49,7 +57,7 @@ impl Process {
 
                 let request_bytes = json!({
                     "type": "terminal",
-                    "container": self.container_id,
+                    "container": self.container.id,
                 })
                 .to_string()
                 .into_bytes();
@@ -70,7 +78,7 @@ impl Process {
             })
             .transpose()?;
 
-        let start_fifo_path = self.runtime_dir.join("start");
+        let start_fifo_path = self.container.runtime_dir().join("start");
         nix::unistd::mkfifo(&start_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)?;
 
         let mut start_fifo = File::options().read(true).open(start_fifo_path)?;
