@@ -55,12 +55,15 @@ impl Cli {
                 bundle,
                 pid_file,
                 console_socket,
-            } => Container::create(CreateArgs {
-                id,
-                bundle,
-                pid_file,
-                console_socket,
-            }),
+            } => {
+                let _ = Container::create(CreateArgs {
+                    id,
+                    bundle,
+                    pid_file,
+                    console_socket,
+                });
+                Ok(())
+            }
             Command::Start { id } => Container::load(&id)?.start(),
             Command::Kill { id, signal } => Container::load(&id)?.kill(signal.try_into()?),
             Command::Delete { force, id } => Container::load(&id)?.delete(force),

@@ -21,7 +21,7 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn create(args: CreateArgs) -> anyhow::Result<()> {
+    pub fn create(args: CreateArgs) -> anyhow::Result<Container> {
         let config_file_path = format!("{}/config.json", args.bundle);
         let spec = Spec::load(config_file_path)?;
 
@@ -45,7 +45,7 @@ impl Container {
         container.state.pid = Some(pid);
         container.save()?;
 
-        Ok(())
+        Ok(container)
     }
 
     fn spawn_process(id: &str, spec: Spec, console_socket: Option<String>) -> anyhow::Result<i32> {
