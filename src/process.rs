@@ -6,9 +6,11 @@ use std::{
 };
 
 use anyhow::Context;
+use log::error;
 use nix::{
     libc,
     pty::OpenptyResult,
+    sched::{CloneCb, CloneFlags},
     sys::{
         socket::{ControlMessage, MsgFlags, SockFlag, SockType, UnixAddr},
         stat::Mode,
@@ -35,7 +37,23 @@ impl Process {
         }
     }
 
-    pub fn execute(mut self) -> anyhow::Result<ExitStatus> {
+    pub fn spawn(self) -> anyhow::Result<i32> {
+        let callback: CloneCb = Box::new(|| match self.clone().execute() {
+            Ok(status) => status.code().unwrap().try_into().unwrap(),
+            Err(err) => {
+                error!("process error: {}", err);
+                1
+            }
+        });
+
+        let mut stack = [0u8; 8192];
+
+        let pid = unsafe { nix::sched::clone(callback, &mut stack, CloneFlags::empty(), None)? };
+
+        Ok(pid.as_raw())
+    }
+
+    fn execute(mut self) -> anyhow::Result<ExitStatus> {
         let pty = self
             .console_socket
             .as_ref()

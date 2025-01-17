@@ -6,9 +6,7 @@ use std::{
 };
 
 use anyhow::Context;
-use log::error;
-use nix::sched::CloneCb;
-use nix::{sched::CloneFlags, sys::signal::Signal, unistd::Pid};
+use nix::{sys::signal::Signal, unistd::Pid};
 use oci_spec::runtime::Spec;
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +36,8 @@ impl Container {
         };
         container.save()?;
 
-        let pid = container.spawn(&spec, &args.console_socket)?;
+        let process = Process::new(container.clone(), spec, args.console_socket);
+        let pid = process.spawn()?;
         fs::write(args.pid_file, pid.to_string().as_bytes())?;
 
         container.state.status = Status::Created;
@@ -46,26 +45,6 @@ impl Container {
         container.save()?;
 
         Ok(container)
-    }
-
-    fn spawn(&self, spec: &Spec, console_socket: &Option<String>) -> anyhow::Result<i32> {
-        let callback: CloneCb = Box::new(|| {
-            let process = Process::new(self.to_owned(), spec.clone(), console_socket.clone());
-
-            match process.execute() {
-                Ok(status) => status.code().unwrap().try_into().unwrap(),
-                Err(err) => {
-                    error!("process error: {}", err);
-                    1
-                }
-            }
-        });
-
-        let mut stack = [0u8; 8192];
-
-        let pid = unsafe { nix::sched::clone(callback, &mut stack, CloneFlags::empty(), None)? };
-
-        Ok(pid.as_raw())
     }
 
     pub fn runtime_dir(&self) -> PathBuf {
