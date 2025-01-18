@@ -5,12 +5,12 @@ mod process;
 
 use clap::Parser;
 use cli::Cli;
-use log::debug;
+use log::trace;
 
 fn main() -> anyhow::Result<()> {
     logging::init();
 
-    debug!("received cli args {:?}", std::env::args());
+    trace!("received cli args {:?}", std::env::args());
 
     let cli = Cli::parse();
     cli.run()

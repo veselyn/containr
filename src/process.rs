@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{IoSlice, Read},
+    io::{IoSlice, Read, Write},
     os::{
         fd::{AsFd, AsRawFd, BorrowedFd},
         unix::net::UnixStream,
@@ -24,19 +24,26 @@ use serde_json::json;
 
 use crate::container::{Container, Status};
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug)]
 pub struct Process {
     container: Container,
     spec: Spec,
     console_socket: Option<String>,
+    pipe_write: File,
 }
 
 impl Process {
-    pub fn new(container: Container, spec: Spec, console_socket: Option<String>) -> Self {
+    pub fn new(
+        container: Container,
+        spec: Spec,
+        console_socket: Option<String>,
+        pipe_write: File,
+    ) -> Self {
         Self {
             container,
             spec,
             console_socket,
+            pipe_write,
         }
     }
 
@@ -70,8 +77,6 @@ impl Process {
         let start_fifo_path = self.container.runtime_dir().join("start");
         nix::unistd::mkfifo(&start_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)?;
 
-        let mut start_fifo = File::options().read(true).open(start_fifo_path)?;
-
         let spec_process = self.spec.process().as_ref().context("no process in spec")?;
 
         let mut args = spec_process
@@ -102,6 +107,9 @@ impl Process {
                 .map(|e| e.split_once("=").unwrap()),
         );
 
+        self.pipe_write.write_all(b"created\n")?;
+
+        let mut start_fifo = File::options().read(true).open(start_fifo_path)?;
         let mut buf = String::new();
         start_fifo.read_to_string(&mut buf)?;
 
