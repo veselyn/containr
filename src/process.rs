@@ -40,8 +40,8 @@ impl Process {
         }
     }
 
-    pub fn spawn(self) -> anyhow::Result<i32> {
-        let callback: CloneCb = Box::new(|| match self.clone().execute() {
+    pub fn spawn(mut self) -> anyhow::Result<i32> {
+        let callback: CloneCb = Box::new(|| match self.execute() {
             Ok(status) => status.code().unwrap().try_into().unwrap(),
             Err(err) => {
                 error!("process error: {}", err);
@@ -56,7 +56,7 @@ impl Process {
         Ok(pid.as_raw())
     }
 
-    fn execute(mut self) -> anyhow::Result<ExitStatus> {
+    fn execute(&mut self) -> anyhow::Result<ExitStatus> {
         let pty = self
             .console_socket
             .as_ref()
