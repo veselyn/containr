@@ -1,7 +1,7 @@
 use std::{
     fs::File,
     io::{IoSlice, Read},
-    os::fd::AsRawFd,
+    os::{fd::AsRawFd, unix::net::UnixStream},
     process::{Command, ExitStatus},
 };
 
@@ -12,7 +12,7 @@ use nix::{
     pty::OpenptyResult,
     sched::{CloneCb, CloneFlags},
     sys::{
-        socket::{ControlMessage, MsgFlags, SockFlag, SockType, UnixAddr},
+        socket::{ControlMessage, MsgFlags},
         stat::Mode,
     },
 };
@@ -60,18 +60,8 @@ impl Process {
             .map(|console_socket| -> anyhow::Result<OpenptyResult> {
                 let pty = nix::pty::openpty(None, None)?;
 
-                let socket = nix::sys::socket::socket(
-                    nix::sys::socket::AddressFamily::Unix,
-                    SockType::Stream,
-                    SockFlag::empty(),
-                    None,
-                )?;
-
+                let socket = UnixStream::connect(console_socket)?;
                 let socket_fd = socket.as_raw_fd();
-
-                let unix_addr = UnixAddr::new(console_socket.as_str())?;
-
-                nix::sys::socket::connect(socket_fd, &unix_addr)?;
 
                 let request_bytes = json!({
                     "type": "terminal",
