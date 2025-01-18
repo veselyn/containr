@@ -1,7 +1,10 @@
 use std::{
     fs::File,
     io::{IoSlice, Read},
-    os::{fd::AsRawFd, unix::net::UnixStream},
+    os::{
+        fd::{AsFd, AsRawFd, BorrowedFd},
+        unix::net::UnixStream,
+    },
     process::{Command, ExitStatus},
 };
 
@@ -59,29 +62,7 @@ impl Process {
             .as_ref()
             .map(|console_socket| -> anyhow::Result<OpenptyResult> {
                 let pty = nix::pty::openpty(None, None)?;
-
-                let socket = UnixStream::connect(console_socket)?;
-                let socket_fd = socket.as_raw_fd();
-
-                let request_bytes = json!({
-                    "type": "terminal",
-                    "container": self.container.id,
-                })
-                .to_string()
-                .into_bytes();
-                let request = IoSlice::new(&request_bytes);
-
-                let fds = [pty.master.as_raw_fd()];
-                let cmsg = ControlMessage::ScmRights(&fds);
-
-                nix::sys::socket::sendmsg::<()>(
-                    socket_fd,
-                    &[request],
-                    &[cmsg],
-                    MsgFlags::empty(),
-                    None,
-                )?;
-
+                self.pass_pty_master(console_socket, pty.master.as_fd())?;
                 Ok(pty)
             })
             .transpose()?;
@@ -135,5 +116,25 @@ impl Process {
         self.container.save()?;
 
         Ok(status)
+    }
+
+    fn pass_pty_master(&self, console_socket: &str, master_fd: BorrowedFd) -> anyhow::Result<()> {
+        let socket = UnixStream::connect(console_socket)?;
+        let socket_fd = socket.as_raw_fd();
+
+        let request_bytes = json!({
+            "type": "terminal",
+            "container": self.container.id,
+        })
+        .to_string()
+        .into_bytes();
+        let request = IoSlice::new(&request_bytes);
+
+        let fds = [master_fd.as_raw_fd()];
+        let cmsg = ControlMessage::ScmRights(&fds);
+
+        nix::sys::socket::sendmsg::<()>(socket_fd, &[request], &[cmsg], MsgFlags::empty(), None)?;
+
+        Ok(())
     }
 }
