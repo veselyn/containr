@@ -21,14 +21,14 @@ use serde_json::json;
 use crate::container::{Container, Status};
 
 #[derive(Debug, Default)]
-pub struct Process {
+pub struct Sandbox {
     container: Container,
     spec: Spec,
     console_socket: Option<String>,
     pipe_write: Option<File>,
 }
 
-impl Process {
+impl Sandbox {
     pub fn new(
         container: Container,
         spec: Spec,

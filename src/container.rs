@@ -11,7 +11,7 @@ use nix::{sys::signal::Signal, unistd::Pid};
 use oci_spec::runtime::Spec;
 use serde::{Deserialize, Serialize};
 
-use crate::process::Process;
+use crate::sandbox::Sandbox;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Container {
@@ -41,7 +41,7 @@ impl Container {
         let mut pipe_read = File::from(pipe_fd_read);
         let pipe_write = File::from(pipe_fd_write);
 
-        let process = Process::new(container.clone(), spec, args.console_socket, pipe_write);
+        let process = Sandbox::new(container.clone(), spec, args.console_socket, pipe_write);
         let pid = process.spawn()?;
         fs::write(args.pid_file, pid.to_string().as_bytes())?;
 
