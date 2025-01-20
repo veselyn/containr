@@ -24,12 +24,12 @@ use serde_json::json;
 
 use crate::container::{Container, Status};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Process {
     container: Container,
     spec: Spec,
     console_socket: Option<String>,
-    pipe_write: File,
+    pipe_write: Option<File>,
 }
 
 impl Process {
@@ -43,7 +43,7 @@ impl Process {
             container,
             spec,
             console_socket,
-            pipe_write,
+            pipe_write: Some(pipe_write),
         }
     }
 
@@ -73,9 +73,6 @@ impl Process {
                 Ok(pty)
             })
             .transpose()?;
-
-        let start_fifo_path = self.container.runtime_dir().join("start");
-        nix::unistd::mkfifo(&start_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)?;
 
         let spec_process = self.spec.process().as_ref().context("no process in spec")?;
 
@@ -107,11 +104,8 @@ impl Process {
                 .map(|e| e.split_once("=").unwrap()),
         );
 
-        self.pipe_write.write_all(b"created\n")?;
-
-        let mut start_fifo = File::options().read(true).open(start_fifo_path)?;
-        let mut buf = String::new();
-        start_fifo.read_to_string(&mut buf)?;
+        self.dispatch_created_event()?;
+        self.wait_for_start_command()?;
 
         self.container.reload()?;
 
@@ -142,6 +136,23 @@ impl Process {
         let cmsg = ControlMessage::ScmRights(&fds);
 
         nix::sys::socket::sendmsg::<()>(socket_fd, &[request], &[cmsg], MsgFlags::empty(), None)?;
+
+        Ok(())
+    }
+
+    fn dispatch_created_event(&mut self) -> anyhow::Result<()> {
+        self.pipe_write.take().unwrap().write_all(b"created\n")?;
+        Ok(())
+    }
+
+    fn wait_for_start_command(&self) -> anyhow::Result<()> {
+        let start_fifo_path = self.container.runtime_dir().join("start");
+        nix::unistd::mkfifo(&start_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)?;
+
+        let mut start_fifo = File::options().read(true).open(start_fifo_path)?;
+
+        let mut buf = String::new();
+        start_fifo.read_to_string(&mut buf)?;
 
         Ok(())
     }

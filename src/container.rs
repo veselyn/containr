@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::io::Read;
 use std::{
     fs::{self, File},
     io::Write,
@@ -38,15 +38,15 @@ impl Container {
         container.save()?;
 
         let (pipe_fd_read, pipe_fd_write) = nix::unistd::pipe()?;
-        let mut pipe_read = BufReader::new(File::from(pipe_fd_read));
+        let mut pipe_read = File::from(pipe_fd_read);
         let pipe_write = File::from(pipe_fd_write);
 
         let process = Process::new(container.clone(), spec, args.console_socket, pipe_write);
         let pid = process.spawn()?;
         fs::write(args.pid_file, pid.to_string().as_bytes())?;
 
-        let mut buf = Vec::new();
-        pipe_read.read_until(b'\n', &mut buf)?;
+        let mut buf = String::new();
+        pipe_read.read_to_string(&mut buf)?;
 
         container.state.status = Status::Created;
         container.state.pid = Some(pid);
