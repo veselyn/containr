@@ -64,15 +64,10 @@ impl Process {
     }
 
     fn execute(&mut self) -> anyhow::Result<ExitStatus> {
-        let pty = self
-            .console_socket
-            .as_ref()
-            .map(|console_socket| -> anyhow::Result<OpenptyResult> {
-                let pty = nix::pty::openpty(None, None)?;
-                self.pass_pty_master(console_socket, pty.master.as_fd())?;
-                Ok(pty)
-            })
-            .transpose()?;
+        if let Some(console_socket) = &self.console_socket {
+            let pty = self.attach_pty_slave()?;
+            self.pass_pty_master(console_socket, pty.master.as_fd())?;
+        }
 
         let spec_process = self.spec.process().as_ref().context("no process in spec")?;
 
@@ -81,16 +76,6 @@ impl Process {
             .as_ref()
             .context("no process args in spec")?
             .iter();
-
-        if let Some(pty) = pty {
-            nix::unistd::setsid()?;
-            let ret = unsafe { libc::ioctl(pty.slave.as_raw_fd(), libc::TIOCSCTTY, 0) };
-            assert!(ret == 0);
-
-            nix::unistd::dup2(pty.slave.as_raw_fd(), 0)?;
-            nix::unistd::dup2(pty.slave.as_raw_fd(), 1)?;
-            nix::unistd::dup2(pty.slave.as_raw_fd(), 2)?;
-        }
 
         let mut process = Command::new(args.next().context("process args are empty")?);
         process.args(args);
@@ -118,6 +103,20 @@ impl Process {
         self.container.save()?;
 
         Ok(status)
+    }
+
+    fn attach_pty_slave(&self) -> anyhow::Result<OpenptyResult> {
+        let pty = nix::pty::openpty(None, None)?;
+
+        nix::unistd::setsid()?;
+        let ret = unsafe { libc::ioctl(pty.slave.as_raw_fd(), libc::TIOCSCTTY, 0) };
+        assert!(ret == 0);
+
+        nix::unistd::dup2(pty.slave.as_raw_fd(), 0)?;
+        nix::unistd::dup2(pty.slave.as_raw_fd(), 1)?;
+        nix::unistd::dup2(pty.slave.as_raw_fd(), 2)?;
+
+        Ok(pty)
     }
 
     fn pass_pty_master(&self, console_socket: &str, master_fd: BorrowedFd) -> anyhow::Result<()> {
