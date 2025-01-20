@@ -43,7 +43,7 @@
 
               pre-commit.hooks = {
                 clippy.enable = true;
-                clippy.settings.denyWarnings = false;
+                clippy.settings.denyWarnings = true;
                 deadnix.enable = true;
                 statix.enable = true;
                 test = {
