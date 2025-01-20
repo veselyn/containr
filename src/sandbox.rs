@@ -64,11 +64,11 @@ impl Sandbox {
     fn execute(&mut self) -> anyhow::Result<ExitStatus> {
         self.maybe_setup_pty()?;
 
-        self.dispatch_created_event()?;
-        self.container.reload()?;
-        self.wait_for_start_command()?;
-
         let mut process = Process::try_from(self.spec.clone())?.0;
+
+        self.dispatch_created_event()?;
+        self.wait_for_start_command()?;
+        self.container.reload()?;
 
         let mut child = process.spawn()?;
         self.container.state.status = Status::Running;
@@ -115,7 +115,7 @@ impl Sandbox {
     }
 
     fn dispatch_created_event(&mut self) -> anyhow::Result<()> {
-        self.pipe_write.take().unwrap().write_all(b"created\n")?;
+        self.pipe_write.take().unwrap().write_all(b"created")?;
         Ok(())
     }
 
