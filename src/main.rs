@@ -1,6 +1,7 @@
 mod cli;
 mod container;
 mod logging;
+mod process;
 mod sandbox;
 
 use clap::Parser;

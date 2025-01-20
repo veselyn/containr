@@ -2,10 +2,9 @@ use std::{
     fs::File,
     io::{IoSlice, Read, Write},
     os::{fd::AsRawFd, unix::net::UnixStream},
-    process::{Command, ExitStatus},
+    process::ExitStatus,
 };
 
-use anyhow::Context;
 use log::error;
 use nix::{
     libc,
@@ -18,7 +17,10 @@ use nix::{
 use oci_spec::runtime::Spec;
 use serde_json::json;
 
-use crate::container::{Container, Status};
+use crate::{
+    container::{Container, Status},
+    process::Process,
+};
 
 #[derive(Debug, Default)]
 pub struct Sandbox {
@@ -62,30 +64,11 @@ impl Sandbox {
     fn execute(&mut self) -> anyhow::Result<ExitStatus> {
         self.maybe_setup_pty()?;
 
-        let spec_process = self.spec.process().as_ref().context("no process in spec")?;
-
-        let mut args = spec_process
-            .args()
-            .as_ref()
-            .context("no process args in spec")?
-            .iter();
-
-        let mut process = Command::new(args.next().context("process args are empty")?);
-        process.args(args);
-        process.env_clear();
-        process.envs(
-            spec_process
-                .env()
-                .clone()
-                .unwrap_or_default()
-                .iter()
-                .map(|e| e.split_once("=").unwrap()),
-        );
-
         self.dispatch_created_event()?;
+        self.container.reload()?;
         self.wait_for_start_command()?;
 
-        self.container.reload()?;
+        let mut process = Process::try_from(self.spec.clone())?.0;
 
         let mut child = process.spawn()?;
         self.container.state.status = Status::Running;
