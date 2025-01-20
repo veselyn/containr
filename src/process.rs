@@ -1,10 +1,7 @@
 use std::{
     fs::File,
     io::{IoSlice, Read, Write},
-    os::{
-        fd::{AsFd, AsRawFd, BorrowedFd},
-        unix::net::UnixStream,
-    },
+    os::{fd::AsRawFd, unix::net::UnixStream},
     process::{Command, ExitStatus},
 };
 
@@ -12,7 +9,6 @@ use anyhow::Context;
 use log::error;
 use nix::{
     libc,
-    pty::OpenptyResult,
     sched::{CloneCb, CloneFlags},
     sys::{
         socket::{ControlMessage, MsgFlags},
@@ -64,10 +60,7 @@ impl Process {
     }
 
     fn execute(&mut self) -> anyhow::Result<ExitStatus> {
-        if let Some(console_socket) = &self.console_socket {
-            let pty = self.attach_pty_slave()?;
-            self.pass_pty_master(console_socket, pty.master.as_fd())?;
-        }
+        self.maybe_setup_pty()?;
 
         let spec_process = self.spec.process().as_ref().context("no process in spec")?;
 
@@ -105,7 +98,11 @@ impl Process {
         Ok(status)
     }
 
-    fn attach_pty_slave(&self) -> anyhow::Result<OpenptyResult> {
+    fn maybe_setup_pty(&self) -> anyhow::Result<()> {
+        let Some(console_socket) = &self.console_socket else {
+            return Ok(());
+        };
+
         let pty = nix::pty::openpty(None, None)?;
 
         nix::unistd::setsid()?;
@@ -116,10 +113,6 @@ impl Process {
         nix::unistd::dup2(pty.slave.as_raw_fd(), 1)?;
         nix::unistd::dup2(pty.slave.as_raw_fd(), 2)?;
 
-        Ok(pty)
-    }
-
-    fn pass_pty_master(&self, console_socket: &str, master_fd: BorrowedFd) -> anyhow::Result<()> {
         let socket = UnixStream::connect(console_socket)?;
         let socket_fd = socket.as_raw_fd();
 
@@ -131,11 +124,10 @@ impl Process {
         .into_bytes();
         let request = IoSlice::new(&request_bytes);
 
-        let fds = [master_fd.as_raw_fd()];
+        let fds = [pty.master.as_raw_fd()];
         let cmsg = ControlMessage::ScmRights(&fds);
 
         nix::sys::socket::sendmsg::<()>(socket_fd, &[request], &[cmsg], MsgFlags::empty(), None)?;
-
         Ok(())
     }
 
