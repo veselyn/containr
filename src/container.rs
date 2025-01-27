@@ -41,8 +41,8 @@ impl Container {
         let mut pipe_read = File::from(pipe_fd_read);
         let pipe_write = File::from(pipe_fd_write);
 
-        let process = Sandbox::new(container.clone(), spec, args.console_socket, pipe_write);
-        let pid = process.spawn()?;
+        let sandbox = Sandbox::new(container.clone(), spec, args.console_socket, pipe_write);
+        let pid = sandbox.spawn()?;
         fs::write(args.pid_file, pid.to_string().as_bytes())?;
 
         let mut buf = String::new();

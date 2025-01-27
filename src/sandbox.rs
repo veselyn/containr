@@ -49,7 +49,7 @@ impl Sandbox {
         let callback: CloneCb = Box::new(|| match self.execute() {
             Ok(status) => status.code().unwrap().try_into().unwrap(),
             Err(err) => {
-                error!("process error: {}", err);
+                error!("sandbox error: {}", err);
                 1
             }
         });
