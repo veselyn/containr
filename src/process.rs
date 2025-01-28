@@ -29,6 +29,7 @@ impl TryFrom<Spec> for Process {
                 .iter()
                 .map(|e| e.split_once("=").unwrap()),
         );
+        command.current_dir(spec_process.cwd());
 
         Ok(Self(command))
     }

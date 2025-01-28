@@ -12,6 +12,7 @@ use std::{
 use log::error;
 use nix::{
     libc,
+    mount::{MntFlags, MsFlags},
     poll::{PollFd, PollFlags, PollTimeout},
     sched::{CloneCb, CloneFlags},
     sys::{
@@ -133,12 +134,19 @@ impl<'a> Sandbox<'a> {
 
     fn pivot_root(&self) -> anyhow::Result<()> {
         let root = self.spec.root().as_ref().unwrap().path();
-        let new_root = root;
-        let put_old = root.join("old");
 
-        std::fs::create_dir(&put_old)?;
+        nix::unistd::chdir(root)?;
+        nix::unistd::pivot_root(".", ".")?; // Stacks mount points
 
-        nix::unistd::pivot_root(new_root, &put_old)?;
+        nix::mount::mount(
+            None::<&str>,
+            "/",
+            None::<&str>,
+            MsFlags::MS_SLAVE | MsFlags::MS_REC,
+            None::<&str>,
+        )?;
+
+        nix::mount::umount2("/", MntFlags::MNT_DETACH)?;
 
         Ok(())
     }
