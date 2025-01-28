@@ -71,13 +71,15 @@ impl<'a> Sandbox<'a> {
 
         let mut stack = [0u8; 8192];
 
-        let pid = unsafe { nix::sched::clone(callback, &mut stack, CloneFlags::empty(), None)? };
+        let pid =
+            unsafe { nix::sched::clone(callback, &mut stack, CloneFlags::CLONE_NEWNS, None)? };
 
         Ok(pid.as_raw())
     }
 
     fn execute(&mut self) -> anyhow::Result<ExitStatus> {
         self.maybe_setup_pty()?;
+        self.pivot_root()?;
 
         let mut process = Process::try_from(self.spec.clone())?.0;
 
@@ -126,6 +128,18 @@ impl<'a> Sandbox<'a> {
         let cmsg = ControlMessage::ScmRights(&fds);
 
         nix::sys::socket::sendmsg::<()>(socket_fd, &[request], &[cmsg], MsgFlags::empty(), None)?;
+        Ok(())
+    }
+
+    fn pivot_root(&self) -> anyhow::Result<()> {
+        let root = self.spec.root().as_ref().unwrap().path();
+        let new_root = root;
+        let put_old = root.join("old");
+
+        std::fs::create_dir(&put_old)?;
+
+        nix::unistd::pivot_root(new_root, &put_old)?;
+
         Ok(())
     }
 
