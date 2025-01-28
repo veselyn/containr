@@ -1,5 +1,5 @@
 {
-  description = "default";
+  description = "containr";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
