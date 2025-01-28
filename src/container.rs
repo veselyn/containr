@@ -45,16 +45,21 @@ impl Container {
         };
         container.save()?;
 
-        let (pipe_fd_read, pipe_fd_write) = nix::unistd::pipe()?;
-        let mut pipe_read = File::from(pipe_fd_read);
-        let pipe_write = File::from(pipe_fd_write);
+        let (created_event_pipe_reader_fd, created_event_pipe_writer_fd) = nix::unistd::pipe()?;
+        let mut created_event_pipe_reader = File::from(created_event_pipe_reader_fd);
+        let created_event_pipe_writer = File::from(created_event_pipe_writer_fd);
 
-        let sandbox = Sandbox::new(&mut container, spec, args.console_socket, pipe_write);
+        let sandbox = Sandbox::new(
+            &mut container,
+            spec,
+            args.console_socket,
+            created_event_pipe_writer,
+        )?;
         let pid = sandbox.spawn()?;
         fs::write(args.pid_file, pid.to_string().as_bytes())?;
 
         let mut buf = String::new();
-        pipe_read.read_to_string(&mut buf)?;
+        created_event_pipe_reader.read_to_string(&mut buf)?;
         assert!(buf == "created");
 
         container.state.status = Status::Created;

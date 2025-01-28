@@ -1,13 +1,18 @@
 use std::{
     fs::File,
     io::{IoSlice, Read, Write},
-    os::{fd::AsRawFd, unix::net::UnixStream},
+    os::{
+        fd::{AsFd, AsRawFd},
+        unix::{fs::OpenOptionsExt, net::UnixStream},
+    },
     process::ExitStatus,
+    time::Duration,
 };
 
 use log::error;
 use nix::{
     libc,
+    poll::{PollFd, PollFlags, PollTimeout},
     sched::{CloneCb, CloneFlags},
     sys::{
         socket::{ControlMessage, MsgFlags},
@@ -27,7 +32,8 @@ pub struct Sandbox<'a> {
     container: &'a mut Container,
     spec: Spec,
     console_socket: Option<String>,
-    pipe_write: Option<File>,
+    created_event_pipe_writer: Option<File>,
+    start_command_fifo_reader: Option<File>,
 }
 
 impl<'a> Sandbox<'a> {
@@ -35,14 +41,23 @@ impl<'a> Sandbox<'a> {
         container: &'a mut Container,
         spec: Spec,
         console_socket: Option<String>,
-        pipe_write: File,
-    ) -> Self {
-        Self {
+        created_event_pipe_writer: File,
+    ) -> anyhow::Result<Self> {
+        let start_command_fifo_path = container.runtime_dir().join("start");
+        nix::unistd::mkfifo(&start_command_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)?;
+
+        let start_command_fifo_reader = File::options()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(start_command_fifo_path)?;
+
+        Ok(Self {
             container,
             spec,
             console_socket,
-            pipe_write: Some(pipe_write),
-        }
+            created_event_pipe_writer: Some(created_event_pipe_writer),
+            start_command_fifo_reader: Some(start_command_fifo_reader),
+        })
     }
 
     pub fn spawn(mut self) -> anyhow::Result<i32> {
@@ -115,18 +130,27 @@ impl<'a> Sandbox<'a> {
     }
 
     fn dispatch_created_event(&mut self) -> anyhow::Result<()> {
-        self.pipe_write.take().unwrap().write_all(b"created")?;
+        self.created_event_pipe_writer
+            .take()
+            .unwrap()
+            .write_all(b"created")?;
+
         Ok(())
     }
 
-    fn wait_for_start_command(&self) -> anyhow::Result<()> {
-        let start_fifo_path = self.container.runtime_dir().join("start");
-        nix::unistd::mkfifo(&start_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)?;
+    fn wait_for_start_command(&mut self) -> anyhow::Result<()> {
+        let mut start_command_fifo_reader = self.start_command_fifo_reader.take().unwrap();
 
-        let mut start_fifo = File::options().read(true).open(start_fifo_path)?;
+        nix::poll::poll(
+            &mut [PollFd::new(
+                start_command_fifo_reader.as_fd(),
+                PollFlags::POLLIN,
+            )],
+            PollTimeout::try_from(Duration::from_secs(5))?,
+        )?;
 
         let mut buf = String::new();
-        start_fifo.read_to_string(&mut buf)?;
+        start_command_fifo_reader.read_to_string(&mut buf)?;
         assert!(buf == "start");
 
         Ok(())
