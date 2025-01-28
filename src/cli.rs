@@ -46,8 +46,8 @@ impl Cli {
     pub fn run(self) -> anyhow::Result<()> {
         match self.command {
             Command::State { id } => {
-                let state = Container::load(&id)?.state();
-                println!("{}", serde_json::to_string_pretty(&state)?);
+                let container = Container::load(&id)?;
+                println!("{}", serde_json::to_string_pretty(&container.state)?);
                 Ok(())
             }
             Command::Create {

@@ -22,17 +22,17 @@ use crate::{
     process::Process,
 };
 
-#[derive(Debug, Default)]
-pub struct Sandbox {
-    container: Container,
+#[derive(Debug)]
+pub struct Sandbox<'a> {
+    container: &'a mut Container,
     spec: Spec,
     console_socket: Option<String>,
     pipe_write: Option<File>,
 }
 
-impl Sandbox {
+impl<'a> Sandbox<'a> {
     pub fn new(
-        container: Container,
+        container: &'a mut Container,
         spec: Spec,
         console_socket: Option<String>,
         pipe_write: File,
@@ -127,6 +127,7 @@ impl Sandbox {
 
         let mut buf = String::new();
         start_fifo.read_to_string(&mut buf)?;
+        assert!(buf == "start");
 
         Ok(())
     }
