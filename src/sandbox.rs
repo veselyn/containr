@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context;
 use log::error;
 use nix::{
     libc,
@@ -45,12 +46,14 @@ impl<'a> Sandbox<'a> {
         created_event_pipe_writer: File,
     ) -> anyhow::Result<Self> {
         let start_command_fifo_path = container.runtime_dir().join("start");
-        nix::unistd::mkfifo(&start_command_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)?;
+        nix::unistd::mkfifo(&start_command_fifo_path, Mode::S_IRUSR | Mode::S_IWUSR)
+            .context("creating fifo for created event")?;
 
         let start_command_fifo_reader = File::options()
             .read(true)
             .custom_flags(libc::O_NONBLOCK)
-            .open(start_command_fifo_path)?;
+            .open(start_command_fifo_path)
+            .context("opening fifo for created event")?;
 
         Ok(Self {
             container,
@@ -76,29 +79,39 @@ impl<'a> Sandbox<'a> {
 
         let mut stack = [0u8; 8192];
 
-        let pid =
-            unsafe { nix::sched::clone(callback, &mut stack, CloneFlags::CLONE_NEWNS, None)? };
+        let pid = unsafe {
+            nix::sched::clone(callback, &mut stack, CloneFlags::CLONE_NEWNS, None)
+                .context("cloning sandbox process")?
+        };
 
         Ok(pid.as_raw())
     }
 
     fn execute(&mut self) -> anyhow::Result<ExitStatus> {
-        self.maybe_setup_pty()?;
-        self.pivot_root()?;
+        self.maybe_setup_pty().context("setting up pty")?;
+        self.pivot_root().context("pivoting root")?;
 
-        let mut process = Process::try_from(self.spec.clone())?.0;
+        let mut process = Process::try_from(self.spec.clone())
+            .context("creating process from spec")?
+            .0;
 
-        self.dispatch_created_event()?;
-        self.wait_for_start_command()?;
-        self.container.reload()?;
+        self.dispatch_created_event()
+            .context("dispatching created event")?;
+        self.wait_for_start_command()
+            .context("waiting for start command")?;
+        self.container.reload().context("reloading container")?;
 
-        let mut child = process.spawn()?;
+        let mut child = process.spawn().context("spawning process")?;
         self.container.state.status = Status::Running;
-        self.container.save()?;
+        self.container
+            .save()
+            .context("saving container with running state")?;
 
-        let status = child.wait()?;
+        let status = child.wait().context("executing process")?;
         self.container.state.status = Status::Stopped;
-        self.container.save()?;
+        self.container
+            .save()
+            .context("saving container with stopped state")?;
 
         Ok(status)
     }
@@ -108,17 +121,17 @@ impl<'a> Sandbox<'a> {
             return Ok(());
         };
 
-        let pty = nix::pty::openpty(None, None)?;
+        let pty = nix::pty::openpty(None, None).context("opening pty")?;
 
-        nix::unistd::setsid()?;
+        nix::unistd::setsid().context("add process to new session")?;
         let ret = unsafe { libc::ioctl(pty.slave.as_raw_fd(), libc::TIOCSCTTY, 0) };
         assert!(ret == 0);
 
-        nix::unistd::dup2(pty.slave.as_raw_fd(), 0)?;
-        nix::unistd::dup2(pty.slave.as_raw_fd(), 1)?;
-        nix::unistd::dup2(pty.slave.as_raw_fd(), 2)?;
+        nix::unistd::dup2(pty.slave.as_raw_fd(), 0).context("duplicating stdin")?;
+        nix::unistd::dup2(pty.slave.as_raw_fd(), 1).context("duplicating stdout")?;
+        nix::unistd::dup2(pty.slave.as_raw_fd(), 2).context("duplicating stderr")?;
 
-        let socket = UnixStream::connect(console_socket)?;
+        let socket = UnixStream::connect(console_socket).context("connecting to console socket")?;
         let socket_fd = socket.as_raw_fd();
 
         let request_bytes = json!({
@@ -132,15 +145,16 @@ impl<'a> Sandbox<'a> {
         let fds = [pty.master.as_raw_fd()];
         let cmsg = ControlMessage::ScmRights(&fds);
 
-        nix::sys::socket::sendmsg::<()>(socket_fd, &[request], &[cmsg], MsgFlags::empty(), None)?;
+        nix::sys::socket::sendmsg::<()>(socket_fd, &[request], &[cmsg], MsgFlags::empty(), None)
+            .context("sending master fd over console socket")?;
         Ok(())
     }
 
     fn pivot_root(&self) -> anyhow::Result<()> {
         let root = self.spec.root().as_ref().expect("os must be linux").path();
 
-        nix::unistd::chdir(root)?;
-        nix::unistd::pivot_root(".", ".")?; // Stacks mount points
+        nix::unistd::chdir(root).context("changing dir to root")?;
+        nix::unistd::pivot_root(".", ".").context("pivoting root syscall")?; // Stacks mount points
 
         nix::mount::mount(
             None::<&str>,
@@ -148,9 +162,10 @@ impl<'a> Sandbox<'a> {
             None::<&str>,
             MsFlags::MS_SLAVE | MsFlags::MS_REC,
             None::<&str>,
-        )?;
+        )
+        .context("mark root mount as MS_SLAVE recursively")?;
 
-        nix::mount::umount2("/", MntFlags::MNT_DETACH)?;
+        nix::mount::umount2("/", MntFlags::MNT_DETACH).context("unmounting old root")?;
 
         Ok(())
     }
@@ -159,7 +174,8 @@ impl<'a> Sandbox<'a> {
         self.created_event_pipe_writer
             .take()
             .expect("created event pipe writer must not be closed")
-            .write_all(b"created")?;
+            .write_all(b"created")
+            .context("writing created event")?;
 
         Ok(())
     }
@@ -175,11 +191,14 @@ impl<'a> Sandbox<'a> {
                 start_command_fifo_reader.as_fd(),
                 PollFlags::POLLIN,
             )],
-            PollTimeout::try_from(Duration::from_secs(5))?,
-        )?;
+            PollTimeout::try_from(Duration::from_secs(5)).unwrap(),
+        )
+        .context("waiting for start command fifo to have readable data")?;
 
         let mut buf = String::new();
-        start_command_fifo_reader.read_to_string(&mut buf)?;
+        start_command_fifo_reader
+            .read_to_string(&mut buf)
+            .context("reading start command")?;
         assert!(buf == "start");
 
         Ok(())

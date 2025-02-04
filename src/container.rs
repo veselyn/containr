@@ -23,13 +23,14 @@ pub struct Container {
 impl Container {
     pub fn create(args: CreateArgs) -> anyhow::Result<Self> {
         let config_file_path = format!("{}/config.json", args.bundle);
-        let spec = Spec::load(config_file_path)?;
+        let spec = Spec::load(config_file_path).context("loading container spec")?;
 
         let runtime_dir = Self::runtime_dir_self(&args.id);
-        fs::create_dir_all(&runtime_dir)?;
+        fs::create_dir_all(&runtime_dir).context("creating runtime dir for container")?;
 
         let state_file_path = runtime_dir.join("state.json");
-        let state_file = File::create_new(state_file_path)?;
+        let state_file =
+            File::create_new(state_file_path).context("creating container state file")?;
 
         let mut container = Self {
             id: args.id.clone(),
@@ -43,9 +44,12 @@ impl Container {
             },
             state_file,
         };
-        container.save()?;
+        container
+            .save()
+            .context("saving container with creating state")?;
 
-        let (created_event_pipe_reader_fd, created_event_pipe_writer_fd) = nix::unistd::pipe()?;
+        let (created_event_pipe_reader_fd, created_event_pipe_writer_fd) =
+            nix::unistd::pipe().context("opening pipe for created event")?;
         let mut created_event_pipe_reader = File::from(created_event_pipe_reader_fd);
         let created_event_pipe_writer = File::from(created_event_pipe_writer_fd);
 
@@ -54,17 +58,23 @@ impl Container {
             spec,
             args.console_socket,
             created_event_pipe_writer,
-        )?;
-        let pid = sandbox.spawn()?;
-        fs::write(args.pid_file, pid.to_string().as_bytes())?;
+        )
+        .context("creating sandbox")?;
+        let pid = sandbox.spawn().context("spawning sandbox")?;
+        fs::write(args.pid_file, pid.to_string().as_bytes())
+            .context("saving container pid to file")?;
 
         let mut buf = String::new();
-        created_event_pipe_reader.read_to_string(&mut buf)?;
+        created_event_pipe_reader
+            .read_to_string(&mut buf)
+            .context("reading created event")?;
         assert!(buf == "created");
 
         container.state.status = Status::Created;
         container.state.pid = Some(pid);
-        container.save()?;
+        container
+            .save()
+            .context("saving container with created state")?;
 
         Ok(container)
     }
@@ -82,9 +92,10 @@ impl Container {
 
     pub fn load(id: &str) -> anyhow::Result<Self> {
         let state_file_path = Self::runtime_dir_self(id).join("state.json");
-        let state_file = File::open(state_file_path)?;
+        let state_file = File::open(state_file_path).context("opening container state file")?;
 
-        let state: State = serde_json::from_reader(&state_file)?;
+        let state: State =
+            serde_json::from_reader(&state_file).context("parsing container state file")?;
 
         Ok(Self {
             id: id.to_owned(),
@@ -95,9 +106,14 @@ impl Container {
 
     pub fn start(&self) -> anyhow::Result<()> {
         let start_fifo_path = self.runtime_dir().join("start");
-        let mut start_fifo = File::options().write(true).open(start_fifo_path)?;
+        let mut start_fifo = File::options()
+            .write(true)
+            .open(start_fifo_path)
+            .context("opening fifo for start command")?;
 
-        start_fifo.write_all(b"start")?;
+        start_fifo
+            .write_all(b"start")
+            .context("writing start command")?;
 
         Ok(())
     }
@@ -112,8 +128,8 @@ impl Container {
             _ => {}
         }
 
-        let pid = Pid::from_raw(self.state.pid.context("pid is required")?);
-        nix::sys::signal::kill(pid, signal)?;
+        let pid = Pid::from_raw(self.state.pid.expect("container must have pid"));
+        nix::sys::signal::kill(pid, signal).context("sending signal to container sandbox")?;
 
         Ok(())
     }
@@ -124,28 +140,37 @@ impl Container {
                 anyhow::bail!("container is not stopped and can't be killed");
             }
 
-            let pid = Pid::from_raw(self.state.pid.context("pid is required")?);
-            nix::sys::signal::kill(pid, Signal::SIGKILL)?;
+            let pid = Pid::from_raw(self.state.pid.expect("container must have pid"));
+            nix::sys::signal::kill(pid, Signal::SIGKILL)
+                .context("sending sigkill to container sandbox")?;
         }
 
-        fs::remove_dir_all(self.runtime_dir())?;
+        fs::remove_dir_all(self.runtime_dir()).context("removing runtime dir for container")?;
 
         Ok(())
     }
 
     pub fn reload(&mut self) -> anyhow::Result<()> {
-        self.state_file.rewind()?;
+        self.state_file
+            .rewind()
+            .context("rewinding container state file")?;
 
-        self.state = serde_json::from_reader(&self.state_file)?;
+        self.state =
+            serde_json::from_reader(&self.state_file).context("parsing container state file")?;
 
         Ok(())
     }
 
     pub fn save(&mut self) -> anyhow::Result<()> {
-        self.state_file.rewind()?;
-        self.state_file.set_len(0)?;
+        self.state_file
+            .rewind()
+            .context("rewinding container state file")?;
+        self.state_file
+            .set_len(0)
+            .context("truncating container state file")?;
 
-        serde_json::to_writer_pretty(&self.state_file, &self.state)?;
+        serde_json::to_writer_pretty(&self.state_file, &self.state)
+            .context("writing container state to file")?;
 
         Ok(())
     }
