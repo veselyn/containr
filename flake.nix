@@ -58,7 +58,24 @@
           ];
         };
 
-        packages = {
+        packages = let
+          containr = pkgs.rustPlatform.buildRustPackage {
+            pname = "containr";
+            version = "0.1.0";
+
+            src = builtins.path {
+              name = "containr";
+              path = ./.;
+            };
+
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+          };
+        in {
+          default = containr;
+          inherit containr;
+
           devenv-test = self'.devShells.default.config.test;
           devenv-up = self'.devShells.default.config.procfileScript;
         };
