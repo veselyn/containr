@@ -63,7 +63,11 @@ impl<'a> Sandbox<'a> {
 
     pub fn spawn(mut self) -> anyhow::Result<i32> {
         let callback: CloneCb = Box::new(|| match self.execute() {
-            Ok(status) => status.code().unwrap().try_into().unwrap(),
+            Ok(status) => status
+                .code()
+                .expect("sandbox process must not be terminated by signal")
+                .try_into()
+                .expect("i32 must fit in isize"),
             Err(err) => {
                 error!("sandbox error: {}", err);
                 1
@@ -133,7 +137,7 @@ impl<'a> Sandbox<'a> {
     }
 
     fn pivot_root(&self) -> anyhow::Result<()> {
-        let root = self.spec.root().as_ref().unwrap().path();
+        let root = self.spec.root().as_ref().expect("os must be linux").path();
 
         nix::unistd::chdir(root)?;
         nix::unistd::pivot_root(".", ".")?; // Stacks mount points
@@ -154,14 +158,17 @@ impl<'a> Sandbox<'a> {
     fn dispatch_created_event(&mut self) -> anyhow::Result<()> {
         self.created_event_pipe_writer
             .take()
-            .unwrap()
+            .expect("created event pipe writer must not be closed")
             .write_all(b"created")?;
 
         Ok(())
     }
 
     fn wait_for_start_command(&mut self) -> anyhow::Result<()> {
-        let mut start_command_fifo_reader = self.start_command_fifo_reader.take().unwrap();
+        let mut start_command_fifo_reader = self
+            .start_command_fifo_reader
+            .take()
+            .expect("start command fifo reader must not be closed");
 
         nix::poll::poll(
             &mut [PollFd::new(

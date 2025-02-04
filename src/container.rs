@@ -71,7 +71,7 @@ impl Container {
 
     fn runtime_dir_self(id: &str) -> PathBuf {
         dirs::runtime_dir()
-            .expect("unknown runtime dir")
+            .expect("XDG_RUNTIME_DIR must be set")
             .join("containr")
             .join(id)
     }
