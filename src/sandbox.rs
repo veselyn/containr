@@ -10,7 +10,6 @@ use std::{
 };
 
 use anyhow::Context;
-use log::error;
 use nix::{
     libc,
     mount::{MntFlags, MsFlags},
@@ -72,7 +71,7 @@ impl<'a> Sandbox<'a> {
                 .try_into()
                 .expect("i32 must fit in isize"),
             Err(err) => {
-                error!("sandbox error: {}", err);
+                log::error!("sandbox error: {}", err);
                 1
             }
         });
