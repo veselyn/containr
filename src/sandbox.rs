@@ -71,7 +71,7 @@ impl<'a> Sandbox<'a> {
                 .try_into()
                 .expect("i32 must fit in isize"),
             Err(err) => {
-                log::error!("sandbox error: {}", err);
+                log::error!("sandbox error: {:#}", err);
                 1
             }
         });
