@@ -1,24 +1,28 @@
 <a id="readme-top"></a>
 
-<h3 align="center">containr</h3>
+<div align="center">
+  <h3 align="center">containr</h3>
 
-  <p align="center">
-    Minimal OCI Runtime
-  </p>
+  <p align="center">Minimal OCI Runtime</p>
 </div>
 
 <details>
   <summary>Table of Contents</summary>
   <ol>
     <li>
-    <a href="#about-the-project">About The Project</a>
+      <a href="#about-the-project">About The Project</a>
       <ul>
-        <li><a href="#building">Building</a></li>
-        <li><a href="#usage">Usage</a></li>
+        <li><a href="#progress">Progress</a></li>
       </ul>
     </li>
-    <li><a href="#getting-started">Getting Started</a></li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#building">Building</a></li>
+      </ul>
+    </li>
     <li><a href="#usage">Usage</a></li>
+    <li><a href="#contact">Contact</a></li>
     <li><a href="#acknowledgments">Acknowledgments</a></li>
   </ol>
 </details>
@@ -27,6 +31,14 @@
 
 This is a toy project to learn more about the OCI runtime specification and
 Linux userland APIs.
+
+### Progress
+
+- [x] Start a container process
+- [x] Set up pseudoterminal when required
+- [x] Pivot root according to given spec
+- [ ] Set up namespaces according to given spec
+- [ ] Set up mounts according to given spec
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
