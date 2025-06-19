@@ -9,12 +9,7 @@
 <details>
   <summary>Table of Contents</summary>
   <ol>
-    <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#progress">Progress</a></li>
-      </ul>
-    </li>
+    <li><a href="#about-the-project">About The Project</a></li>
     <li>
       <a href="#getting-started">Getting Started</a>
       <ul>
@@ -22,6 +17,7 @@
       </ul>
     </li>
     <li><a href="#usage">Usage</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contact">Contact</a></li>
     <li><a href="#acknowledgments">Acknowledgments</a></li>
   </ol>
@@ -31,14 +27,6 @@
 
 This is a toy project to learn more about the OCI runtime specification and
 Linux userland APIs.
-
-### Progress
-
-- [x] Start a container process
-- [x] Set up pseudoterminal when required
-- [x] Pivot root according to given spec
-- [ ] Set up namespaces according to given spec
-- [ ] Set up mounts according to given spec
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -70,6 +58,16 @@ podman --runtime=/path/to/containr run -it debian bash
 
 Theoretically, you should be able to use `docker` instead of `podman` but I
 haven't tested it.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Roadmap
+
+- [x] Start a container process
+- [x] Set up pseudoterminal when required
+- [x] Pivot root according to given spec
+- [ ] Set up namespaces according to given spec
+- [ ] Set up mounts according to given spec
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
